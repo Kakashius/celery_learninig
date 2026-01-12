@@ -16,11 +16,13 @@ project/
 ```
 
 <h4>Роли файлов: </h4>
+
 - main.py — HTTP
 - celery_app.py — инициализация и настройка Celery, подключение Redis
 - tasks.py — фоновые функции для обработки
 
 <h4>Самая важная строка в Celery</h4>
+
 1) Просто:
 `some_task.delay(arg1, arg2)`
 2) Гибко:
@@ -39,6 +41,7 @@ some_task.apply_async(
 ```
 
 <h4>Запуск процесса Celery воркера</h4>
+
 ```angular2html
 celery -A app.celery_app worker
 │      │  │           │
@@ -49,6 +52,7 @@ celery -A app.celery_app worker
 ```
 
 <h4>Запуск Celery воркера для отдельной очереди</h4>
+
 ```angular2html
 celery -A myapp worker -Q emails -n worker_emails@%h (необязательно)
                                 │  └─────┬──────┘
@@ -60,10 +64,12 @@ worker_emails — название воркера (любое имя на ваш
 ```
 
 <h4>Celery плох в:</h4>
+
 - тяжёлые CPU-bound задачи (воркеры заняты на 100% CPU). Лучше отдельные сервисы (C++, Go, Rust)
 - простой асинхронный код. Лучше BackgroundTasks FastAPI или asyncio.create_task
 
 <h4>Доступные команды Celery:</h4>
+
 ```angular2html
 # Основные команды
 celery -A celery_app worker     # Запустить воркер
@@ -93,8 +99,28 @@ celery -A celery_app amqp       # AMQP утилиты
 | Неудача после max_retries | `FAILURE`               |
 | Успешно                   | `SUCCESS`               |
 
+<h4>Как получить результат задачи запросом клиента?</h4>
+
+ОБЯЗАТЕЛЬНО: нужен result_backend для сохранения результата задачи!\
+Шаги:
+
+1) при запуске фоновой задачи:
+`result = my_task.delay(data)`
+или
+`result = my_task.apply_async(args=[*data])`
+возвращается task_id задачи. Его нужно вернуть клиенту
+
+2) При запросе клиент должен указать этот id и вызывать:
+```
+from celery.result import AsyncResult, GroupResult
+
+res = AsyncResult(task_id, app=celery_app)
+или res = AsyncResult(task_id, app=celery_app) для результата групповых задач
+```
+
 <H3>Celery Beat</H3>
 **Celery Beat** — **отдельный процесс**, который ставит задачи в очередь по расписанию.
+
 Архитектура:
 ```angular2html
 Periodic task schedule
@@ -110,16 +136,20 @@ Periodic task schedule
 ```
 
 Celery Beat **не предназначен** для периодической/отложенной обработки задачи конкретных пользователей:
+
 - НЕ слушает HTTP
 - НЕ реагирует на пользователя
 - НЕ смотрит в очередь
-Для этих целей используются воркеры Celery для отложенных задач
+
+Для этих целей используются воркеры Celery для отложенных задач.
 
 <h4>Запуск процесса Celery Beat:</h4>
+
 `celery -A celery_app beat --concurrency=4 --loglevel=info`
 --concurrency=4 - до 4 задач извлекаются параллельно
 
 <H3>Celery Flower</H3>
+
 Flower — веб-интерфейс для мониторинга Celery
 `pip install flower`
 Запуск Flower - как отдельный процесс:
@@ -128,9 +158,11 @@ Flower — веб-интерфейс для мониторинга Celery
 - --port=5555 → веб-интерфейс будет доступен по http://localhost:5555
 
 <H3>Chain / Group / Chord</H3>
+
 - Chain (цепочка задач)
 - Group (параллельные задачи)
 - Chord (группировка результатов + колбэк (опционально))
+
 Для Chain / Group / Chord **нужен backend redis**, чтобы хранить результаты промежуточных задач.
 ```
 Внутри задач можно вызывать свой Chain / Group / Chord:
@@ -138,6 +170,7 @@ Chain(task1, chord(group(...), task3))
 ```
 
 <H4>Объект result = workflow.apply_async()</H4>
+
 result:
 1) AsyncResult - если chain, chord
 2) GroupResult - если group
@@ -232,7 +265,9 @@ celery_app.conf.worker_prefetch_multiplier = 1
 ```
 
 <H3>Масштабируемость Celery и Redis:</H3>
+
 - Для broker_url и result_backend *всегда* указывается мастер-нода redis!
 - Каждую задачу можно поместить в отдельную очередь, чтобы отдельный воркер слушал её.
 - Можно запускать несколько контейнеров одного ворекра, но нужно настроить celery_once и prefetch_multiplier=1 для ищбежания дублирования обработки задач.
 - Celery Beat и Flower масштабировать не нужно, т.к. Beat всего лишь планировщик (не выполняет задачи), Flower - инструмеент мониторнинга
+
